@@ -1,0 +1,142 @@
+---
+title: "mbts"
+author: "SW"
+date: "1/31/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+source('gen_truth_class_pois.R')
+```
+
+## Generating Simulation Data
+
+To generate simulated data:
+
+```{r}
+set.seed(1)
+
+tbl <- gen_table()
+```
+
+The parameters in this function and their default values are:
+
+* fl_sig=0: floor of the arima signal normalization
+* w_sig=6: roof of the arima signal normalization
+* fl_bg=-6: floor of the background normalization
+* w_bg=6: roof of the background normalization
+* bg_disp_mu=0: background noise poisson distribution mean
+* bg_disp_sigma=1: background noise poisson distribution sd
+* sig_disp_mu1=0: arima shared noise poisson distribution mean
+* sig_disp_sigma1=0: arima shared noise poisson distribution sd
+* sig_disp_mu2=0: signal taxa specific noise poission distribution mean
+* sig_disp_sigma2=1: signal taxa specific noise poission distribution sd
+* n_sig=10: number of arima signals
+* n_clust=10: number of taxa in an arima signal
+* n_tax_sig=1: number of taxa with FINAL signal (in beta atm)
+* n_bg=700: number of background taxa (this + signal columns in output data)
+* len_arima=1000: length of arima signal, needs to be larger than window
+* len_ts=500: length of the time series (row size of output table)
+* len_signal=300) # length of the shared signal
+
+The output of gen_table() is the final simulated abundance table:
+
+```{r}
+tbl[1:5,1:5]
+```
+
+The column names reflect whether the features are signal or background (the noise):
+
+```{r}
+head(colnames(tbl))
+tail(colnames(tbl))
+```
+
+The table belongs to the class mbts:
+
+```{r}
+class(tbl)
+```
+
+and it has a set of methods:
+
+```{r}
+methods(class='mbts')
+```
+
+There are two plotting methods. plot_sig() plots **examples** of the arima signal. This isn't the same signal used to generate the simulated data; instead, it's a set of similar signals obtained using the same arima parameters.
+
+```{r}
+plot_sig(tbl,n=4)
+```
+
+plot_sim plots the simulated data, where the blue shading shows the aligned, shared signal across all taxa (clusters):
+
+```{r}
+plot_sim(tbl)
+```
+
+The class also has a set of attributes with some of the intermediate data:
+
+```{r}
+names(attributes(tbl))
+```
+
+signals stores the underlying, untouched arima signals. For this example, there were 10 taxa (clusters), so this the signals slot will be a list of length 10:
+
+```{r}
+signals <- attr(tbl,'signals')
+length(signals)
+```
+
+If we look at the first taxon, we can see that each slot in this list contains:
+
+* the time series signal before noise (the pure signal)
+* the time series signal after noise
+* the final time series after timeshifting and adding the secound round of noise
+* the indexes used to timeshift the signal
+
+```{r}
+taxa_1 <- signals[[1]]
+names(taxa_1)
+
+head(taxa_1$timeseries_pure)
+head(taxa_1$timeseries)
+taxa_1$cluster[1:5,1:5]
+```
+
+And we can plot these:
+
+```{r}
+qplot(seq_along(taxa_1$timeseries_pure),
+      taxa_1$timeseries_pure,
+      geom='line',xlab='',ylab='')
+
+qplot(seq_along(taxa_1$timeseries),
+      taxa_1$timeseries,
+      geom='line',xlab='',ylab='')
+
+data.frame(time=1:nrow(taxa_1$cluster),taxa_1$cluster) %>%
+  gather(taxon,count,-time) %>%
+  mutate(taxon=as.integer(gsub('X','',taxon))) %>%
+  ggplot(aes(time,count)) +
+  geom_point(size=.5) +
+  geom_line(alpha=.5) +
+  facet_grid(taxon~.) +
+  theme_classic()
+```
+
+If we needed to access the background distribution, we can do the following:
+
+```{r}
+background <- attr(tbl,'background')
+background[1:5,1:5]
+```
+
+And if we needed to access the parameters we originally passed to generate the simulation:
+
+```{r}
+attr(tbl,'params')
+```
