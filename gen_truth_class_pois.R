@@ -1,8 +1,5 @@
 library(tidyverse)
 
-# utility functions
-normab <- function(x,a,b) (b-a)*(x - min(x))/(max(x) - min(x)) + a
-
 gen_arima <- function(n,a,b){
 
   while (TRUE){
@@ -18,7 +15,7 @@ gen_arima <- function(n,a,b){
 
   }
 
-  timeseries <- normab(timeseries,a,b)
+  timeseries <- scales::rescale(as.vector(timeseries),c(a,b))
   attr(timeseries,'w') <- list(ar=w_ar,i=i_order,ma=w_ma)
 
   return(timeseries)
@@ -41,7 +38,7 @@ gen_table <- function(fl_sig=0,w_sig=6,
   max_ts <- min(idx_signal)
 
   # generate background distribution
-  mu_bg <- normab(rnorm(len_ts*n_bg,0,1),fl_bg,w_bg)
+  mu_bg <- scales::rescale(rnorm(len_ts*n_bg,0,1),c(fl_bg,w_bg))
   background <- matrix(sapply(mu_bg,function(mu) rpois(1,exp(mu + rnorm(1,bg_disp_mu,bg_disp_sigma)))),
                        len_ts,n_bg)
 
@@ -50,9 +47,13 @@ gen_table <- function(fl_sig=0,w_sig=6,
 
     # generate n_sig features for cluster k
 
-    timeseries <- gen_arima(len_arima,fl_sig,w_sig) # gen signal for nb distriution means
-    timeseries_noise1 <- rnorm(length(timeseries),sig_disp_mu1,sig_disp_sigma1)
-    timeseries <- sapply(seq_along(timeseries),function(i) rpois(1,exp(timeseries[i] + timeseries_noise1[i])))
+    timeseries_pure <- gen_arima(len_arima,fl_sig,w_sig) # gen signal for nb distriution means
+    timeseries_noise1 <- rnorm(length(timeseries_pure),sig_disp_mu1,sig_disp_sigma1)
+    timeseries <- sapply(seq_along(timeseries_pure),function(i) {
+                           theta <- exp(timeseries_pure[i] + timeseries_noise1[i])
+                           theta <- ifelse(theta > 20, 20, theta)
+                           rpois(1,theta)
+                           })
     attr(timeseries,'indexes') <- idx_signal
 
     # sample starting points within window to get indes for n_sig signals of length len_signal
@@ -64,13 +65,17 @@ gen_table <- function(fl_sig=0,w_sig=6,
     # generate n_sig time series via nb distribution within frame within window
     cluster <- sapply(seq_len(n_sig),function(i){
       y_tmp <- timeseries[timesteps[,i]]
-      sapply(y_tmp,function(mu) mu + rpois(n_tax_sig,exp(rnorm(1,sig_disp_mu2,sig_disp_sigma2))))
+      sapply(y_tmp,function(mu) {
+        theta <- exp(rnorm(1,sig_disp_mu2,sig_disp_sigma2))
+        theta <- ifelse(theta > 20, 20, theta)
+        mu + rpois(n_tax_sig,theta)
+        })
     })
 
-    list(timeseries=timeseries,cluster=cluster,timesteps=timesteps)
+    list(timeseries_pure=timeseries_pure,timeseries=timeseries,cluster=cluster,timesteps=timesteps)
 
   })
-  abund <-  do.call(cbind,lapply(dat,function(x) x[[2]]))
+  abund <-  do.call(cbind,lapply(dat,function(x) x$cluster))
   final_table <- cbind(abund,background) # join signal features with background features
 
   colnames(final_table) <- c(paste0(rep('cl',n_clust*n_sig),rep(1:n_sig,each=n_clust),'_',rep('sig',n_clust*n_sig),rep(1:n_clust,n_sig)),
@@ -78,7 +83,6 @@ gen_table <- function(fl_sig=0,w_sig=6,
 
   attr(final_table,'signals') <- dat
   attr(final_table,'background') <- background
-  attr(final_table,'table') <- final_table
   attr(final_table,'params') <- params
 
   class(final_table) <- 'mbts'
@@ -90,8 +94,8 @@ gen_table <- function(fl_sig=0,w_sig=6,
 
 # methods
 sig_cor <- function(object,...) UseMethod('sig_cor')
-prep_sig <-function(object,...) UseMethod('prep_sig')
-prep_sim <- function(object,...) UseMethod('prep_sim')
+plot_sig <- function(object,...) UseMethod('plot_sig')
+plot_sim <- function(object,...) UseMethod('plot_sim')
 sparsity <- function(object,...) UseMethod('sparsity')
 quantiles <- function(object,...) UseMethod('quantiles')
 
@@ -115,7 +119,7 @@ sig_cor.mbts <- function(x,i=1,method='spearman',round=3,...){
 
 }
 
-prep_sig.mbts <- function(x,n=6,seed=sample.int(.Machine$integer.max,1)){
+plot_sig.mbts <- function(x,n=6,seed=sample.int(.Machine$integer.max,1)){
 
   params <- attr(x,'params')
 
@@ -124,15 +128,15 @@ prep_sig.mbts <- function(x,n=6,seed=sample.int(.Machine$integer.max,1)){
     tibble(w=as.numeric(w),t=1:length(w),sim=x)
   }))
 
-  return(sims)
+  # return(sims)
 
-  # par(mfrow=c(3,2))
-  # sapply(seq_len(n),function(x) plot(gen_arima(params$len_arima,params$fl_sig,params$w_sig)))
-  # par(mfrow=c(1,1))
+  par(mfrow=c(3,2))
+  sapply(seq_len(n),function(x) plot(gen_arima(params$len_arima,params$fl_sig,params$w_sig)))
+  par(mfrow=c(1,1))
 
 }
 
-prep_sim.mbts <- function(x,i=1){
+plot_sim.mbts <- function(x,i=1){
 
   z <- attr(x,'signals')[[i]]
   idx_signal <- attr(z$timeseries,'indexes')
@@ -144,26 +148,26 @@ prep_sim.mbts <- function(x,i=1){
                    stringsAsFactors=FALSE) %>%
     left_join(data.frame(t=min(.$t):max(.$t),signal=as.vector(z$timeseries)[min(.$t):max(.$t)]),by='t') %>%
     group_by(taxa) %>%
-    mutate(signal=round(normab(signal,0,max(count))),
+    mutate(signal=round(scales::rescale(signal,c(0,max(count)))),
            min_t=min(t),
            max_t=max(t))
 
-  return(df)
+  #return(df)
 
-  # p1 <- df %>%
-  #   ggplot() +
-  #   geom_rect(aes(xmin=min_t,xmax=max_t,ymin=-Inf,ymax=Inf),fill='gray') +
-  #   annotate('rect',xmin=range(idx_signal)[1],xmax=range(idx_signal)[2],ymin=-Inf,ymax=Inf,alpha=0.2,fill='dodgerblue') +
-  #   geom_line(aes(t,signal),linetype=3,color='red') +
-  #   geom_line(aes(t,count),alpha=.5) +
-  #   geom_point(aes(t,count),alpha=1) +
-  #   facet_wrap(~taxa,ncol=2) +
-  #   stat_smooth(aes(t,count),method='loess',color='green',se=FALSE,span=.1,size=.7,alpha=.5) +
-  #   theme_classic() +
-  #   xlim(range(df$t)) +
-  #   labs(x='time',y='count')
-  #
-  # p1
+  p1 <- df %>%
+    ggplot() +
+    geom_rect(aes(xmin=min_t,xmax=max_t,ymin=-Inf,ymax=Inf),fill='gray') +
+    annotate('rect',xmin=range(idx_signal)[1],xmax=range(idx_signal)[2],ymin=-Inf,ymax=Inf,alpha=0.2,fill='dodgerblue') +
+    geom_line(aes(t,signal),linetype=3,color='red') +
+    geom_line(aes(t,count),alpha=.5) +
+    geom_point(aes(t,count),alpha=1) +
+    facet_wrap(~taxa,ncol=2) +
+    stat_smooth(aes(t,count),method='loess',color='green',se=FALSE,span=.1,size=.7,alpha=.5) +
+    theme_classic() +
+    xlim(range(df$t)) +
+    labs(x='time',y='count')
+
+  p1
 
 }
 
