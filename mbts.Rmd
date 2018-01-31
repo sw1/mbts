@@ -140,3 +140,28 @@ And if we needed to access the parameters we originally passed to generate the s
 ```{r}
 attr(tbl,'params')
 ```
+
+The last set of methods help summarize the simulated signals. sig_cor() generates the spearman correlation matrix for each taxon for a given signal $i$:
+
+```{r}
+rho <- sig_cor(tbl,i=1)
+rho[1:5,1:5]
+
+data.frame(i=1:nrow(rho),rho) %>%
+  gather(j,p,-i) %>%
+  mutate(j=as.integer(gsub('X','',j))) %>%
+  ggplot(aes(x=i,y=j,fill=p)) +
+  geom_raster() +
+  scale_fill_distiller(palette='Reds',direction=1)
+```
+
+We can also look at the quantiles of the signal and background:
+
+```{r}
+quantiles(tbl)
+```
+And finally, we can look at how sparse each signal is:
+
+```{r}
+sparsity(tbl)
+```

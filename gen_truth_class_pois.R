@@ -175,7 +175,7 @@ quantiles.mbts <- function(x,min=.75,max=1,length=15){
 
   background <- attr(x,'background')
   signals <- attr(x,'signals')
-  abund <-  do.call(cbind,lapply(signals,function(x) x[[2]]))
+  abund <-  do.call(cbind,lapply(signals,function(x) x$cluster))
 
   q <- cbind(quantile(abund,seq(min,max,length=length)),quantile(background,seq(min,max,length=length)))
   colnames(q) <- c('signal','background')
@@ -188,7 +188,7 @@ sparsity.mbts <- function(x,min=.75,max=1,length=15){
 
   background <- attr(x,'background')
   signals <- attr(x,'signals')
-  abund <-  do.call(cbind,lapply(signals,function(x) x[[2]]))
+  abund <-  do.call(cbind,lapply(signals,function(x) x$cluster))
 
   s <- c(mean(abund==0),mean(background==0))
   names(s) <- c('signal','background')
