@@ -66,7 +66,7 @@ gen_table <- function(fl_sig=0,w_sig=6,
     cluster <- sapply(seq_len(n_sig),function(i){
       y_tmp <- timeseries[timesteps[,i]]
       sapply(y_tmp,function(mu) {
-        theta <- exp(rnorm(1,sig_disp_mu2,sig_disp_sigma2))
+        theta <- exp(rnorm(1,sig_disp_mu2,sig_disp_sigma2)) - 1
         theta <- ifelse(theta > 20, 20, theta)
         mu + rpois(n_tax_sig,theta)
         })
@@ -81,13 +81,10 @@ gen_table <- function(fl_sig=0,w_sig=6,
   colnames(final_table) <- c(paste0(rep('cl',n_clust*n_sig),rep(1:n_sig,each=n_clust),'_',rep('sig',n_clust*n_sig),rep(1:n_clust,n_sig)),
                              paste0('bg',1:ncol(background)))
 
-  attr(final_table,'signals') <- dat
-  attr(final_table,'background') <- background
-  attr(final_table,'params') <- params
+  out <- list(table=final_table,signals=dat,background=background,params=params)
+  class(out) <- 'mbts'
 
-  class(final_table) <- 'mbts'
-
-  return(final_table)
+  invisible(out)
 
 }
 
@@ -100,9 +97,9 @@ sparsity <- function(object,...) UseMethod('sparsity')
 quantiles <- function(object,...) UseMethod('quantiles')
 
 
-# print.mbts <- function(x,...){
-#   cat('A mbts class object.')
-# }
+print.mbts <- function(x,...){
+  cat('A mbts class object.')
+}
 
 clust_cor.mbts <- function(x,i=1,method='spearman',round=3,...){
 
