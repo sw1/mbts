@@ -93,7 +93,7 @@ gen_table <- function(fl_sig=0,w_sig=6,
 
 
 # methods
-sig_cor <- function(object,...) UseMethod('sig_cor')
+clust_cor <- function(object,...) UseMethod('clust_cor')
 plot_sig <- function(object,...) UseMethod('plot_sig')
 plot_sim <- function(object,...) UseMethod('plot_sim')
 sparsity <- function(object,...) UseMethod('sparsity')
@@ -104,7 +104,7 @@ quantiles <- function(object,...) UseMethod('quantiles')
 #   cat('A mbts class object.')
 # }
 
-sig_cor.mbts <- function(x,i=1,method='spearman',round=3,...){
+clust_cor.mbts <- function(x,i=1,method='spearman',round=3,...){
 
   z <- attr(x,'signals')[[i]]
   idx_signal <- attr(z$timeseries,'indexes')
