@@ -51,7 +51,7 @@ gen_table <- function(fl_sig=0,w_sig=6,
     timeseries_noise1 <- rnorm(length(timeseries_pure),sig_disp_mu1,sig_disp_sigma1)
     timeseries <- sapply(seq_along(timeseries_pure),function(i) {
                            theta <- exp(timeseries_pure[i] + timeseries_noise1[i])
-                           theta <- ifelse(theta > 20, 20, theta)
+                           theta <- ifelse(theta > exp(20), exp(20), theta)
                            rpois(1,theta)
                            })
     attr(timeseries,'indexes') <- idx_signal
@@ -66,8 +66,8 @@ gen_table <- function(fl_sig=0,w_sig=6,
     cluster <- sapply(seq_len(n_sig),function(i){
       y_tmp <- timeseries[timesteps[,i]]
       sapply(y_tmp,function(mu) {
-        theta <- exp(rnorm(1,sig_disp_mu2,sig_disp_sigma2)) - 1
-        theta <- ifelse(theta > 20, 20, theta)
+        theta <- ifelse(sig_disp_sigma2 == 0,0,exp(rnorm(1,sig_disp_mu2,sig_disp_sigma2)))
+        theta <- ifelse(theta > exp(20), exp(20), theta)
         mu + rpois(n_tax_sig,theta)
         })
     })
